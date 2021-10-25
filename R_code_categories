@@ -1,0 +1,40 @@
+#install.packages("gtrendsR")
+#install.packages("openxlsx")
+
+library(gtrendsR)
+library(openxlsx)
+
+data("categories") #retrieving the names of all possible categories (https://github.com/pat310/google-trends-api/wiki/Google-Trends-Categories)
+categories = unique(categories) #remove duplicates
+categories_no = categories["id"]  
+categories_result = as.data.frame((gtrends(category = categories_no[,1][2], geo ="HR", onlyInterest = TRUE))[[c(1, 1)]]) #creating the DataFrame with the first observation
+names(categories_result)[1] = "Date"
+
+overall_time = 0
+no_iter = 0
+for (i in 2:dim(categories)[1]){
+  start_time = Sys.time()
+  no_iter = no_iter+1
+  if (no_iter > 10){
+    print(paste("Waiting 6 seconds..."))
+    Sys.sleep(6)
+    #sleep is added to avoid problems with API
+    no_iter = 0
+  }
+  #try catch is used to proceed when error occurs... and error message is printed out
+  tryCatch({
+  cat_trend = as.data.frame((gtrends(category = categories_no[,1][i], geo ="HR", onlyInterest = TRUE))[[c(1, 2)]])
+  categories_result = cbind(categories_result, cat_trend)
+  names(categories_result)[(dim(categories_result)[2])] = categories[,"name"][i]
+  Sys.sleep(1.5)
+  end_time = Sys.time()
+  time_needed = end_time - start_time
+  overall_time = overall_time + time_needed
+  print(paste(i, "Category", categories[,"name"][i], ", number: ", categories[,"id"][i],
+              "was finished in: ", time_needed, ". Overall time: ", overall_time))
+    
+  rm(cat_trend)
+  }, error=function(e){cat("ERROR :",conditionMessage(e), categories[,"name"][i], "\n")})
+}
+
+write.xlsx(categories_result, file = "Google_Trends_data.xlsx", row.names=FALSE) #save the data in Excel
